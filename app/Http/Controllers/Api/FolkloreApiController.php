@@ -6,11 +6,25 @@ use App\Http\Controllers\Controller;
 use App\Models\FolkloreStory;
 use App\Models\StoryScore;
 use Database\Seeders\FolkloreSeeder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class FolkloreApiController extends Controller
 {
+    /**
+     * Helper untuk mengembalikan JSON yang selalu rapi (Pretty Print) di Postman, Browser, & Unity.
+     */
+    private function prettyJson(mixed $data, int $status = 200): JsonResponse
+    {
+        return response()->json(
+            $data,
+            $status,
+            ['Content-Type' => 'application/json; charset=UTF-8'],
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        );
+    }
+
     /**
      * Pastikan data folklore Indonesia sudah terisi di database.
      */
@@ -23,13 +37,6 @@ class FolkloreApiController extends Controller
 
     /**
      * Modul 7: GET Daftar Cerita Folklore Indonesia (StoryListResponse & StoryDto[])
-     * Mendukung:
-     *   GET /api
-     *   GET /api/stories
-     *   GET /api/posts
-     *   GET /api/folklore
-     * Query opsional:
-     *   ?raw=1 -> mengembalikan array murni [{...},{...}] untuk latihan ArrayWrapper<StoryDto>
      */
     public function index(Request $request)
     {
@@ -47,10 +54,10 @@ class FolkloreApiController extends Controller
         })->values();
 
         if ($request->boolean('raw')) {
-            return response()->json($stories, 200);
+            return $this->prettyJson($stories, 200);
         }
 
-        return response()->json([
+        return $this->prettyJson([
             'status' => 'ok',
             'data'   => $stories,
         ], 200);
@@ -65,13 +72,13 @@ class FolkloreApiController extends Controller
 
         $item = FolkloreStory::find($id);
         if (!$item) {
-            return response()->json([
+            return $this->prettyJson([
                 'status'  => 'error',
                 'message' => "Cerita dengan id '{$id}' tidak ditemukan.",
             ], 404);
         }
 
-        return response()->json([
+        return $this->prettyJson([
             'status' => 'ok',
             'data'   => [
                 'id'         => $item->id,
@@ -86,29 +93,6 @@ class FolkloreApiController extends Controller
 
     /**
      * Modul 8: POST Trigger Pengiriman Poin (ScoreSubmission -> ScoreResponse)
-     * Mendukung:
-     *   POST /api
-     *   POST /api/scores
-     *   POST /api/posts
-     *   POST /api/submit-score
-     *
-     * Kontrak Request JSON (ScoreSubmission):
-     * {
-     *   "sessionId": "9f1c2e70-4b3a-4d1e-8c2f-1a2b3c4d5e6f",
-     *   "playerName": "Rina",
-     *   "storyId": "story_001",
-     *   "points": 75,
-     *   "objectivesCompleted": 3,
-     *   "durationSeconds": 214
-     * }
-     *
-     * Kontrak Response JSON (ScoreResponse):
-     * {
-     *   "status": "ok",
-     *   "message": "Skor tersimpan",
-     *   "totalPoints": 320,
-     *   "rank": 1
-     * }
      */
     public function submitScore(Request $request)
     {
@@ -117,7 +101,7 @@ class FolkloreApiController extends Controller
         // 1. Cek Content-Type: tolak form-urlencoded (jebakan overload UnityWebRequest.Post(url, string) pada Modul 8)
         $contentType = (string) $request->header('Content-Type', '');
         if (stripos($contentType, 'application/json') === false && !$request->isJson()) {
-            return response()->json([
+            return $this->prettyJson([
                 'status'      => 'error',
                 'message'     => 'Header Content-Type harus application/json (gunakan UploadHandlerRaw, bukan overload Post form-urlencoded).',
                 'totalPoints' => 0,
@@ -140,7 +124,7 @@ class FolkloreApiController extends Controller
 
         // 2. Validasi field wajib (Modul 8 Tugas 8.2: jika storyId / sessionId / playerName kosong -> 400 Bad Request)
         if ($sessionId === '' || $playerName === '' || $storyId === '' || $points === null || $points < 0) {
-            return response()->json([
+            return $this->prettyJson([
                 'status'      => 'error',
                 'message'     => 'Field wajib (sessionId, playerName, storyId, points) tidak lengkap atau tidak valid.',
                 'totalPoints' => 0,
@@ -153,7 +137,7 @@ class FolkloreApiController extends Controller
         if ($existing) {
             [$totalPoints, $rank] = $this->calculatePlayerStats($existing->player_name);
 
-            return response()->json([
+            return $this->prettyJson([
                 'status'      => 'ok',
                 'message'     => 'Sesi ini sudah pernah tercatat sebelumnya (pengaman duplikat aktif, poin tidak dihitung ganda)',
                 'totalPoints' => $totalPoints,
@@ -173,7 +157,7 @@ class FolkloreApiController extends Controller
 
         [$totalPoints, $rank] = $this->calculatePlayerStats($playerName);
 
-        return response()->json([
+        return $this->prettyJson([
             'status'      => 'ok',
             'message'     => 'Skor tersimpan',
             'totalPoints' => $totalPoints,
@@ -200,7 +184,7 @@ class FolkloreApiController extends Controller
                 ];
             });
 
-        return response()->json([
+        return $this->prettyJson([
             'status'      => 'ok',
             'leaderboard' => $rankings,
         ], 200);
